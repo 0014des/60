@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>60 Seconds: Ultimate Web Edition</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1a1a1a;
+            color: #dcdcdc;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            width: 900px;
+            background-color: #2b2b2b;
+            border: 2px solid #555;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 5px;
+            position: relative;
+        }
+        h1, h2, h3 { text-align: center; color: #ff5555; margin-top: 0; }
+        p { line-height: 1.5; }
+
+        /* 画面遷移制御 */
+        .screen { display: none; animation: fadeIn 0.3s; }
+        .active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* ボタン */
+        button {
+            background: #444; color: white; border: 1px solid #666;
+            padding: 8px 16px; cursor: pointer; transition: 0.2s; font-family: inherit; font-size: 14px;
+        }
+        button:hover { background: #666; transform: translateY(-2px); }
+        button:disabled { background: #222; color: #555; cursor: not-allowed; transform: none; }
+        
+        .btn-large { width: 100%; padding: 15px; font-size: 1.2em; margin: 10px 0; }
+        .btn-start { background-color: #d32f2f; border-color: #b71c1c; font-weight: bold; }
+        .btn-start:hover { background-color: #e53935; }
+        .btn-back { background: transparent; border: none; color: #888; text-decoration: underline; padding: 0; }
+
+        /* モード選択カード */
+        .mode-card {
+            background: #333; border: 1px solid #444; padding: 20px; margin-bottom: 15px; cursor: pointer;
+        }
+        .mode-card:hover { border-color: #ffcc00; background: #3a3a3a; }
+
+        /* ショップ・アイテムUI */
+        .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px;}
+        .shop-item {
+            background: #333; padding: 10px; text-align: center; border: 1px solid #444; user-select: none;
+        }
+        .shop-item.selected { border-color: #ffcc00; background: #443a1a; }
+        .counter-ctrl { display: flex; justify-content: space-between; margin-top: 5px; }
+
+        .difficulty-tabs { display: flex; margin-bottom: 15px; }
+        .tab-btn { flex: 1; background: #222; border: 1px solid #444; padding: 10px; }
+        .tab-btn.active-tab { background: #d32f2f; border-color: #d32f2f; font-weight: bold; }
+
+        /* ゲーム画面レイアウト */
+        .game-header { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 10px; margin-bottom: 15px; }
+        .game-layout { display: flex; gap: 20px; }
+        .left-panel { flex: 2; }
+        .right-panel { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+        /* 家族カード */
+        .family-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+        .char-card {
+            background: #333; border: 1px solid #555; padding: 10px; border-radius: 4px;
+        }
+        .char-card.dead { opacity: 0.4; filter: grayscale(100%); }
+        .char-card.away { border-color: #e65100; background: #3e2723; }
+        
+        .char-info { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+        .status-bar { height: 6px; background: #222; margin: 3px 0; border-radius: 3px; overflow: hidden; }
+        .bar-fill { height: 100%; width: 0%; transition: width 0.3s; }
+
+        /* インベントリバッジ */
+        .inventory-area { background: #222; padding: 10px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px; }
+        .inv-badge { background: #555; padding: 4px 8px; font-size: 0.9em; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px;}
+
+        /* 日記 */
+        .journal {
+            background: #ddd; color: #222; padding: 15px; font-family: 'Times New Roman', serif;
+            height: 250px; overflow-y: auto; border: 1px solid #999;
+        }
+        .journal p { margin: 0 0 8px 0; border-bottom: 1px dashed #ccc; padding-bottom: 4px; font-size: 0.95em; }
+
+        /* 探索モーダル */
+        #modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-content { background: #333; padding: 25px; width: 450px; border: 1px solid #777; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- 1. モード選択画面 -->
+    <div id="screen-mode" class="screen active">
+        <h1>60 SECONDS: WEB EDITION</h1>
+        <p style="text-align:center; margin-bottom:30px">核爆発まで残りわずか。サバイバル計画を立てろ。</p>
+
+        <div class="mode-card" onclick="goToScenarioSelect()">
+            <h3>📜 シナリオモード</h3>
+            <p>決められたアイテムセットで挑戦します。「初心者向け」「防衛重視」など。</p>
+        </div>
+        <div class="mode-card" onclick="goToCustomPrep()">
+            <h3>🎒 カスタムモード</h3>
+            <p>ポイントを使って自由に物資を選びます。難易度（容量）を選択可能。</p>
+        </div>
+    </div>
+
+    <!-- 2. シナリオ選択画面 -->
+    <div id="screen-scenario" class="screen">
+        <button class="btn-back" onclick="switchScreen('screen-mode')">← 戻る</button>
+        <h2>シナリオ選択</h2>
+        <div id="scenario-list"></div> <!-- JSで生成 -->
+    </div>
+
+    <!-- 3. カスタム準備画面 -->
+    <div id="screen-custom" class="screen">
+        <button class="btn-back" onclick="switchScreen('screen-mode')">← 戻る</button>
+        <h2>物資調達</h2>
+        
+        <div class="difficulty-tabs">
+            <button class="tab-btn active-tab" onclick="setCustomDiff('easy', this)">簡単 (30pt)</button>
+            <button class="tab-btn" onclick="setCustomDiff('normal', this)">普通 (20pt)</button>
+            <button class="tab-btn" onclick="setCustomDiff('hard', this)">困難 (10pt)</button>
+        </div>
+
+        <div style="text-align:right; color:#ffcc00; margin-bottom:5px;">
+            容量: <span id="cap-current">0</span> / <span id="cap-max">20</span>
+        </div>
+
+        <div class="shop-grid" id="shop-container"></div>
+        
+        <button class="btn-large btn-start" onclick="startGameCustom()">シェルターに入る</button>
+    </div>
+
+    <!-- 4. メインゲーム画面 -->
+    <div id="screen-game" class="screen">
+        <div class="game-header">
+            <div>Day: <span id="val-day">1</span></div>
+            <div style="color:#4caf50">救助率: <span id="val-rescue">0</span>%</div>
+        </div>
+
+        <div class="game-layout">
+            <!-- 左カラム: 家族・インベントリ -->
+            <div class="left-panel">
+                <div id="family-area" class="family-grid"></div>
+                
+                <h3>📦 備蓄物資</h3>
+                <div id="inventory-area" class="inventory-area"></div>
+            </div>
+
+            <!-- 右カラム: 日記・アクション -->
+            <div class="right-panel">
+                <div class="journal" id="journal-log">
+                    <p>避難成功。ここが我々の新しい家だ。</p>
+                </div>
+
+                <div style="background:#222; padding:10px; border:1px solid #444;">
+                    <button id="btn-expedition" class="btn-large" style="background:#e65100; border-color:#bf360c; margin-top:0;" onclick="openExpedition()">
+                        🔍 探索へ出す
+                    </button>
+                    <button class="btn-large btn-start" onclick="nextDay()">
+                        🌙 一日を終える
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. ゲームオーバー画面 -->
+    <div id="screen-result" class="screen" style="text-align:center; padding:50px;">
+        <h1 id="res-title">GAME OVER</h1>
+        <p id="res-msg" style="font-size:1.2em;"></p>
+        <button class="btn-large" onclick="location.reload()">タイトルに戻る</button>
+    </div>
+
+</div>
+
+<!-- 探索モーダル -->
+<div id="modal-overlay">
+    <div class="modal-content">
+        <h3>探索の準備</h3>
+        <p>誰を外に送りますか？（3〜5日帰還しません）</p>
+        <select id="sel-exp-char" style="width:100%; padding:10px; background:#444; color:white; margin-bottom:15px;"></select>
+        
+        <p>持たせる装備:</p>
+        <div style="display:flex; gap:10px; margin-bottom:20px;">
+            <label><input type="checkbox" id="chk-mask"> 😷 マスク</label>
+            <label><input type="checkbox" id="chk-map"> 🗺 地図</label>
+            <label><input type="checkbox" id="chk-gun"> 🔫 銃</label>
+        </div>
+
+        <div style="display:flex; justify-content:space-between;">
+            <button onclick="document.getElementById('modal-overlay').style.display='none'">キャンセル</button>
+            <button style="background:#e65100; color:white;" onclick="confirmExpedition()">出発！</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/** 
+ * --- 定数・データベース ---
+ */
+const ITEMS = {
+    soup: { name: 'スープ', icon: '🥫', cost: 1, type: 'consumable' },
+    water: { name: '水', icon: '💧', cost: 1, type: 'consumable' },
+    medkit: { name: '救急箱', icon: '💊', cost: 3, type: 'tool' },
+    mask: { name: 'マスク', icon: '😷', cost: 2, type: 'tool' },
+    radio: { name: 'ラジオ', icon: '📻', cost: 2, type: 'tool' },
+    gun: { name: 'ライフル', icon: '🔫', cost: 3, type: 'tool' },
+    map: { name: '地図', icon: '🗺', cost: 2, type: 'tool' },
+    axe: { name: '斧', icon: '🪓', cost: 3, type: 'tool' },
+    bugspray: { name: '殺虫剤', icon: '💨', cost: 2, type: 'tool' },
+    cards: { name: 'トランプ', icon: '🃏', cost: 1, type: 'tool' },
+    flashlight: { name: 'ライト', icon: '🔦', cost: 2, type: 'tool' }
+};
+
+const CHARACTERS = [
+    { id: 'dad', name: 'テッド(父)', icon: '👨🏻' },
+    { id: 'mom', name: 'ドロレス(母)', icon: '👩🏼' },
+    { id: 'sis', name: 'メリー(姉)', icon: '👧🏻' },
+    { id: 'bro', name: 'ティミー(弟)', icon: '👦🏻' }
+];
+
+const SCENARIOS = [
+    { id: 's1', title: '🔰 初心者キット', desc: '食料と水が豊富。ラジオと薬もあり安定している。', inv: { soup:5, water:5, radio:1, medkit:1, cards:1 } },
+    { id: 's2', title: '🛡️ 武装キャンプ', desc: '食料は少ないが、銃と斧で外敵に対抗できる。', inv: { soup:2, water:2, gun:1, axe:1, map:1, flashlight:1 } },
+    { id: 's3', title: '💀 絶望', desc: 'スープ1、水1、殺虫剤1。運だけが頼りだ。', inv: { soup:1, water:1, bugspray:1 } }
+];
+
+/** 
+ * --- ゲーム状態変数 ---
+ */
+let gameState = {
+    day: 1,
+    inventory: {}, // { soup: 3, water: 3, ... }
+    family: [],    // [{id, hp, hunger, thirst, status...}]
+    rescue: 0,
+    expedition: null, // { charId, daysLeft, items:{} }
+    active: false
+};
+
+// カスタム準備用
+let shopData = {
+    soup: 0, water: 0, tools: [],
+    capMax: 20
+};
+
+/** 
+ * --- 画面遷移・初期化 ---
+ */
+function switchScreen(id) {
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+// 1. シナリオ選択
+function goToScenarioSelect() {
+    switchScreen('screen-scenario');
+    const div = document.getElementById('scenario-list');
+    div.innerHTML = '';
+    SCENARIOS.forEach(sc => {
+        const btn = document.createElement('div');
+        btn.className = 'mode-card';
+        btn.innerHTML = `<h3>${sc.title}</h3><p>${sc.desc}</p>`;
+        btn.onclick = () => startGame(sc.inv);
+        div.appendChild(btn);
+    });
+}
+
+// 2. カスタム準備
+function goToCustomPrep() {
+    switchScreen('screen-custom');
+    shopData = { soup:0, water:0, tools:[], capMax:20 };
+    renderShop();
+}
+
+function setCustomDiff(level, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+    btn.classList.add('active-tab');
+    if(level === 'easy') shopData.capMax = 30;
+    if(level === 'normal') shopData.capMax = 20;
+    if(level === 'hard') shopData.capMax = 10;
+    renderShop();
+}
+
+function renderShop() {
+    const cont = document.getElementById('shop-container');
+    cont.innerHTML = '';
+    
+    // スープ・水
+    ['soup','water'].forEach(key => {
+        const el = document.createElement('div');
+        el.className = 'shop-item';
+        el.innerHTML = `
+            <div>${ITEMS[key].icon}${ITEMS[key].name} (${ITEMS[key].cost})</div>
+            <div class="counter-ctrl">
+                <button onclick="modShopItem('${key}', -1)">-</button>
+                <span>${shopData[key]}</span>
+                <button onclick="modShopItem('${key}', 1)">+</button>
+            </div>
+        `;
+        cont.appendChild(el);
+    });
+
+    // 道具
+    Object.keys(ITEMS).forEach(key => {
+        if(ITEMS[key].type !== 'tool') return;
+        const el = document.createElement('div');
+        el.className = 'shop-item';
+        if(shopData.tools.includes(key)) el.classList.add('selected');
+        el.innerHTML = `<div>${ITEMS[key].icon}${ITEMS[key].name}</div><div>${ITEMS[key].cost}pt</div>`;
+        el.onclick = () => toggleShopTool(key);
+        cont.appendChild(el);
+    });
+
+    // 容量計算
+    let used = shopData.soup + shopData.water; // cost1なのでそのまま
+    shopData.tools.forEach(t => used += ITEMS[t].cost);
+    
+    document.getElementById('cap-current').innerText = used;
+    document.getElementById('cap-max').innerText = shopData.capMax;
+    document.getElementById('cap-current').style.color = used > shopData.capMax ? 'red' : '#ffcc00';
+}
+
+function modShopItem(key, delta) {
+    if(delta > 0) shopData[key]++;
+    else if(shopData[key] > 0) shopData[key]--;
+    renderShop();
+}
+
+function toggleShopTool(key) {
+    const idx = shopData.tools.indexOf(key);
+    if(idx >= 0) shopData.tools.splice(idx, 1);
+    else shopData.tools.push(key);
+    renderShop();
+}
+
+function startGameCustom() {
+    let used = shopData.soup + shopData.water;
+    shopData.tools.forEach(t => used += ITEMS[t].cost);
+    
+    if(used > shopData.capMax) { alert("容量オーバーです！"); return; }
+    if(used === 0 && !confirm("何も持たずに行きますか？")) return;
+
+    const initialInv = { soup: shopData.soup, water: shopData.water };
+    shopData.tools.forEach(t => initialInv[t] = 1);
+    startGame(initialInv);
+}
+
+// 3. ゲーム開始処理共通
+function startGame(inventory) {
+    gameState = {
+        day: 1,
+        inventory: inventory,
+        family: CHARACTERS.map(c => ({
+            ...c,
+            alive: true, location: 'home',
+            hunger: 0, thirst: 0,
+            sickness: false, injury: false
+        })),
+        rescue: 0,
+        expedition: null,
+        active: true
+    };
+    
+    switchScreen('screen-game');
+    updateGameUI();
+    log("シェルターの扉を閉じた。長い戦いが始まる。");
+}
+
+/** 
+ * --- メインゲームロジック ---
+ */
+function updateGameUI() {
+    document.getElementById('val-day').innerText = gameState.day;
+    document.getElementById('val-rescue').innerText = gameState.rescue;
+
+    // 家族描画
+    const famArea = document.getElementById('family-area');
+    famArea.innerHTML = '';
+    gameState.family.forEach(char => {
+        const div = document.createElement('div');
+        div.className = `char-card ${!char.alive ? 'dead' : ''} ${char.location==='out' ? 'away' : ''}`;
+        
+        // ステータス表示構築
+        let st = [];
+        if(!char.alive) st.push("💀 死亡");
+        else if(char.location === 'out') st.push("🏃 探索中");
+        else {
+            if(char.sickness) st.push("🤢 病気");
+            if(char.injury) st.push("🤕 怪我");
+            if(st.length === 0) st.push("健康");
+        }
+        
+        div.innerHTML = `
+            <div class="char-info">
+                <span style="font-size:24px">${char.icon}</span>
+                <div>
+                    <div>${char.name}</div>
+                    <small style="color:#aaa">${st.join(',')}</small>
+                </div>
+            </div>
+        `;
+
+        // 操作パネル (生存かつ在宅時)
+        if(char.alive && char.location === 'home') {
+            const hPct = Math.min(100, char.hunger);
+            const tPct = Math.min(100, char.thirst);
+            
+            div.innerHTML += `
+                <div style="font-size:12px">空腹</div>
+                <div class="status-bar"><div class="bar-fill" style="width:${hPct}%; background:${hPct>70?'red':'#ff9800'}"></div></div>
+                <div style="font-size:12px">渇き</div>
+                <div class="status-bar"><div class="bar-fill" style="width:${tPct}%; background:${tPct>70?'red':'#03a9f4'}"></div></div>
+                
+                <div style="margin-top:5px; display:flex; gap:2px;">
+                    <button onclick="feed('${char.id}','soup')">🥫</button>
+                    <button onclick="feed('${char.id}','water')">💧</button>
+                    <button onclick="heal('${char.id}')" ${(!char.sickness && !char.injury)?'disabled':''}>💊</button>
+                </div>
+            `;
+        } else if(char.location === 'out') {
+            div.innerHTML += `<div style="text-align:center; font-size:12px; margin-top:10px;">帰還まで: ${gameState.expedition.daysLeft}日</div>`;
+        }
+        famArea.appendChild(div);
+    });
+
+    // インベントリ描画
+    const invArea = document.getElementById('inventory-area');
+    invArea.innerHTML = '';
+    Object.keys(gameState.inventory).forEach(k => {
+        if(gameState.inventory[k] > 0) {
+            const sp = document.createElement('span');
+            sp.className = 'inv-badge';
+            sp.innerText = `${ITEMS[k].icon} ${gameState.inventory[k]}`;
+            invArea.appendChild(sp);
+        }
+    });
+
+    // 探索ボタン制御
+    const btnExp = document.getElementById('btn-expedition');
+    if(gameState.expedition) {
+        btnExp.disabled = true;
+        btnExp.innerText = "探索中...";
+    } else {
+        const canGo = gameState.family.some(c => c.alive && c.location === 'home' && !c.sickness && !c.injury);
+        btnExp.disabled = !canGo;
+        btnExp.innerText = canGo ? "🔍 探索へ出す" : "誰も行けない";
+    }
+}
+
+function feed(id, type) {
+    if(gameState.inventory[type] > 0) {
+        gameState.inventory[type]--;
+        const c = gameState.family.find(x => x.id === id);
+        if(type === 'soup') c.hunger = Math.max(0, c.hunger - 50);
+        else c.thirst = Math.max(0, c.thirst - 50);
+        updateGameUI();
+    } else {
+        alert("在庫がありません");
+    }
+}
+
+function heal(id) {
+    if(gameState.inventory.medkit > 0) {
+        gameState.inventory.medkit--;
+        const c = gameState.family.find(x => x.id === id);
+        c.sickness = false;
+        c.injury = false;
+        log(`${c.name} を治療した。`);
+        updateGameUI();
+    } else {
+        alert("救急箱がありません");
+    }
+}
+
+function log(msg) {
+    const p = document.createElement('p');
+    p.innerHTML = msg;
+    const box = document.getElementById('journal-log');
+    box.prepend(p);
+}
+
+/**
+ * --- 探索システム ---
+ */
+function openExpedition() {
+    document.getElementById('modal-overlay').style.display = 'flex';
+    const sel = document.getElementById('sel-exp-char');
+    sel.innerHTML = '';
+    gameState.family.forEach(c => {
+        if(c.alive && c.location === 'home' && !c.sickness && !c.injury) {
+            const op = document.createElement('option');
+            op.value = c.id;
+            op.innerText = c.name;
+            sel.appendChild(op);
+        }
+    });
+    
+    // 装備チェックボックスの状態更新（所持していなければdisabled）
+    ['mask', 'map', 'gun'].forEach(k => {
+        const chk = document.getElementById('chk-'+k);
+        chk.checked = false;
+        chk.disabled = !gameState.inventory[k];
+    });
+}
+
+function confirmExpedition() {
+    const cid = document.getElementById('sel-exp-char').value;
+    if(!cid) return;
+
+    const char = gameState.family.find(x => x.id === cid);
+    char.location = 'out';
+
+    gameState.expedition = {
+        charId: cid,
+        daysLeft: 3 + Math.floor(Math.random()*2),
+        hasMask: document.getElementById('chk-mask').checked,
+        hasMap: document.getElementById('chk-map').checked,
+        hasGun: document.getElementById('chk-gun').checked
+    };
+
+    document.getElementById('modal-overlay').style.display = 'none';
+    log(`<strong>${char.name}</strong> が探索へ出発した。`);
+    updateGameUI();
+}
+
+/**
+ * --- 日数進行 ---
+ */
+function nextDay() {
+    if(!gameState.active) return;
+    gameState.day++;
+    log(`<b>--- Day ${gameState.day} ---</b>`);
+
+    // 1. 家族の状態悪化
+    let someoneAlive = false;
+    gameState.family.forEach(c => {
+        if(c.alive) {
+            if(c.location === 'home') {
+                c.hunger += 15;
+                c.thirst += 20;
+                
+                // 死亡判定
+                if(c.hunger >= 100 || c.thirst >= 100) {
+                    c.alive = false;
+                    log(`<span style="color:red">💀 ${c.name} は死亡した...</span>`);
+                }
+            }
+            if(c.alive) someoneAlive = true;
+        }
+    });
+
+    if(!someoneAlive) {
+        gameOver("全滅しました...", false);
+        return;
+    }
+
+    // 2. 探索更新
+    if(gameState.expedition) {
+        gameState.expedition.daysLeft--;
+        if(gameState.expedition.daysLeft <= 0) resolveExpedition();
+    }
+
+    // 3. ランダムイベント
+    if(Math.random() < 0.5) triggerEvent();
+
+    // 4. 救助チェック (ラジオ所持で確率UP)
+    if(gameState.inventory.radio) {
+        gameState.rescue += 5 + Math.floor(Math.random()*10);
+        if(Math.random() < 0.2) log("📻 ラジオから軍の通信を傍受した！");
+    }
+    
+    if(gameState.rescue >= 100) {
+        gameOver("軍の救助隊が到着した！生存成功！", true);
+        return;
+    }
+
+    updateGameUI();
+}
+
+function resolveExpedition() {
+    const exp = gameState.expedition;
+    const char = gameState.family.find(c => c.id === exp.charId);
+    char.location = 'home';
+    gameState.expedition = null;
+    
+    // アイテム発見
+    let found = [];
+    let chance = 0.4;
+    if(exp.hasMap) chance += 0.3; // 地図ボーナス
+
+    if(Math.random() < chance) found.push('soup');
+    if(Math.random() < chance) found.push('water');
+    if(Math.random() < 0.3) {
+        const tools = Object.keys(ITEMS).filter(k => ITEMS[k].type === 'tool');
+        found.push(tools[Math.floor(Math.random()*tools.length)]);
+    }
+
+    found.forEach(k => {
+        gameState.inventory[k] = (gameState.inventory[k]||0)+1;
+    });
+
+    let msg = `<strong>${char.name}</strong> が帰還した。`;
+    if(found.length) msg += ` 収穫: ${found.map(k=>ITEMS[k].name).join(',')}`;
+    else msg += ` 成果はなかった。`;
+
+    // リスク判定
+    if(!exp.hasMask && Math.random() < 0.3) {
+        char.sickness = true;
+        msg += ` <span style="color:red">病気にかかったようだ。</span>`;
+    }
+    if(!exp.hasGun && Math.random() < 0.3) {
+        char.injury = true;
+        msg += ` <span style="color:red">怪我をして戻ってきた。</span>`;
+    }
+
+    log(msg);
+}
+
+function triggerEvent() {
+    // 簡易イベントリスト
+    const events = [
+        { text: "ゴキブリの群れが現れた！", req: "bugspray", alt: "axe", failDmg: 20, okMsg: "駆除した。", failMsg: "不衛生で体調悪化。" },
+        { text: "強盗が侵入しようとしている！", req: "gun", alt: "axe", failLoss: "soup", okMsg: "撃退した。", failMsg: "食料を奪われた。" },
+        { text: "通気口が故障した！", req: "mask", failDmg: 30, okMsg: "修理成功。", failMsg: "有毒ガスでダメージ。" },
+        { text: "暗闇で物音がする...", req: "flashlight", failLoss: "water", okMsg: "ただのネズミだった。", failMsg: "水をこぼしてしまった。" }
+    ];
+
+    const ev = events[Math.floor(Math.random() * events.length)];
+    let win = false;
+    
+    // 道具チェック (req または alt を持っていればOK)
+    if((ev.req && gameState.inventory[ev.req]) || (ev.alt && gameState.inventory[ev.alt])) {
+        win = true;
+    }
+
+    log(`[事件] ${ev.text}`);
+    if(win) {
+        log(`<span style="color:#4caf50">➤ ${ev.okMsg}</span>`);
+    } else {
+        log(`<span style="color:#ff5555">➤ ${ev.failMsg}</span>`);
+        if(ev.failDmg) {
+            gameState.family.forEach(c => {
+                if(c.alive && c.location === 'home') c.hunger += 10; // ダメージの代わりに空腹増
+            });
+        }
+        if(ev.failLoss && gameState.inventory[ev.failLoss]>0) {
+            gameState.inventory[ev.failLoss]--;
+        }
+    }
+}
+
+function gameOver(msg, isWin) {
+    gameState.active = false;
+    switchScreen('screen-result');
+    document.getElementById('res-title').innerText = isWin ? "SURVIVED!" : "GAME OVER";
+    document.getElementById('res-title').style.color = isWin ? "#4caf50" : "#ff5555";
+    document.getElementById('res-msg').innerText = msg + ` (記録: ${gameState.day}日)`;
+}
+
+</script>
+
+</body>
+</html>
